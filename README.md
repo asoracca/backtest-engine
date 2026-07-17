@@ -1,37 +1,63 @@
-# backtest-engine
+# Backtest Engine
 
-An **event-driven backtesting engine, built from scratch** in Python — no
-backtesting libraries doing the work. It mirrors the decoupled architecture real
-trading systems use: components communicate only through events on a queue.
+A compact event-driven backtesting engine built from scratch in Python. Its main research rule is explicit: **signals are generated at `close[t]`, filled at `open[t+1]`, and marked at `close[t+1]`**. That prevents the same-close look-ahead error common in first backtests.
 
-## Architecture
+## What version 1 includes
 
-    DataHandler --MarketEvent--> Strategy --SignalEvent--> Portfolio
-        ^                                                      |
-        |                                                  OrderEvent
-        |                                                      v
-        +------------- FillEvent <--- ExecutionHandler <-------+
+- Injected pandas DataFrames for deterministic, network-free tests
+- Target-weight sizing, cash reservation, and order rejection
+- Directional slippage and per-share/minimum commissions
+- Order, fill, trade, position, cash, rejection, and equity ledgers
+- A cost-matched buy-and-hold benchmark
+- Transaction-cost sensitivity at 0, 1, 5, and 10 bps
+- Tests for timing, cash, multiple symbols, costs, exits, missing bars, and final marking
 
-Each component is independent and swappable:
+## Event flow
 
-| Module | Responsibility |
-|--------|----------------|
-| `engine/data.py` | Streams historical bars, emits a `MarketEvent` per day |
-| `engine/strategy.py` | Turns market data into `SignalEvent`s (example: MA crossover) |
-| `engine/portfolio.py` | Tracks cash/positions/equity; sizes orders; books fills |
-| `engine/execution.py` | Simulated broker with slippage + commission |
-| `engine/backtest.py` | The event loop that drives everything |
-| `engine/metrics.py` | Sharpe, drawdown, returns from the equity curve |
+```text
+bar opens -> pending orders fill -> bar closes -> strategy signals
+     ^                                                |
+     |                                                v
+next bar <--- order waits in broker <--- portfolio target weights
+```
 
-## Run
+## Install and test
 
-    pip install -r requirements.txt
-    python run.py            # runs a 20/50 MA crossover on AAPL, saves the equity curve
-    python tests/test_portfolio.py   # unit tests for portfolio accounting
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+python -m unittest discover -s tests -v
+```
 
-## Extending it
+Run the SPY example (this step downloads market data):
 
-Write a new strategy by subclassing `Strategy` and implementing
-`calculate_signals(event)` — the rest of the engine is unchanged. That decoupling
-is the whole point: the same engine can drive any strategy, and each component can
-be tested in isolation.
+```bash
+python run.py
+```
+
+Outputs are saved under `data/`, including every ledger, the cost-sensitivity table, and an equity chart.
+
+## Minimal network-free use
+
+```python
+import pandas as pd
+from engine.backtest import Backtest
+from engine.strategy import MovingAverageCross
+
+bars = pd.DataFrame(
+    {"Open": [100, 101, 102], "Close": [101, 102, 103]},
+    index=pd.date_range("2024-01-01", periods=3),
+)
+results = Backtest(
+    ["TEST"],
+    price_data={"TEST": bars},
+    strategy_cls=MovingAverageCross,
+    strategy_kwargs={"short": 1, "long": 2},
+).run()
+print(results["fills"])
+```
+
+## Scope and limitations
+
+This is an educational daily-bar simulator, not a production trading system. It does not model partial market liquidity, limit orders, corporate-action edge cases, borrow, taxes, or intraday queue position. See [methodology](docs/METHODOLOGY.md), [design](docs/DESIGN.md), and [results](docs/RESULTS.md).

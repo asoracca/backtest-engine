@@ -1,34 +1,47 @@
-"""Event types that flow through the backtest queue."""
+"""Typed events passed through the backtest queue."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
 
 
+@dataclass(frozen=True)
 class MarketEvent:
-    def __init__(self):
-        self.type = "MARKET"
+    dt: datetime
+    type: str = field(default="MARKET", init=False)
 
 
+@dataclass(frozen=True)
 class SignalEvent:
-    def __init__(self, symbol, dt, direction):
-        self.type = "SIGNAL"
-        self.symbol = symbol
-        self.dt = dt
-        self.direction = direction  # LONG, EXIT (SHORT reserved)
+    symbol: str
+    dt: datetime
+    target_weight: float
+    type: str = field(default="SIGNAL", init=False)
 
 
+@dataclass(frozen=True)
 class OrderEvent:
-    def __init__(self, symbol, quantity, direction, order_type="MKT"):
-        self.type = "ORDER"
-        self.symbol = symbol
-        self.quantity = int(quantity)
-        self.direction = direction  # BUY / SELL
-        self.order_type = order_type
+    order_id: str
+    symbol: str
+    quantity: int
+    direction: str
+    submitted_dt: datetime
+    reference_price: float
+    type: str = field(default="ORDER", init=False)
 
 
+@dataclass(frozen=True)
 class FillEvent:
-    def __init__(self, dt, symbol, quantity, direction, fill_price, commission):
-        self.type = "FILL"
-        self.dt = dt
-        self.symbol = symbol
-        self.quantity = int(quantity)
-        self.direction = direction
-        self.fill_price = float(fill_price)
-        self.commission = float(commission)
+    order_id: str
+    submitted_dt: datetime
+    dt: datetime
+    symbol: str
+    quantity: int
+    direction: str
+    reference_price: float
+    fill_price: float
+    commission: float
+    slippage_cost: float
+    type: str = field(default="FILL", init=False)
+

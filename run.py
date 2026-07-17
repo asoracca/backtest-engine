@@ -1,31 +1,51 @@
-"""Example: run a 20/50 moving-average crossover through the engine."""
-import os
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+"""Reproducible example, benchmark, and transaction-cost sensitivity study."""
+
+from pathlib import Path
+
+import pandas as pd
+
 from engine.backtest import Backtest
+from engine.data import download_price_data
+from engine.metrics import buy_and_hold, performance
 from engine.strategy import MovingAverageCross
-from engine.metrics import performance
 
 
 def main():
-    symbols, cap = ["AAPL"], 100000.0
-    bt = Backtest(symbols, "2018-01-01", cap, MovingAverageCross, short=20, long=50)
-    equity = bt.run()
-    stats, df = performance(equity, cap)
-    print("Moving-average crossover (20/50) on %s" % symbols[0])
-    print("  Final equity:  $%s" % format(stats["final_equity"], ",.0f"))
-    print("  Total return:  %+.1f%%" % (stats["total_return"] * 100))
-    print("  Annual return: %+.1f%%" % (stats["annual_return"] * 100))
-    print("  Sharpe:        %.2f" % stats["sharpe"])
-    print("  Max drawdown:  %.1f%%" % (stats["max_drawdown"] * 100))
-    plt.figure(figsize=(10, 5))
-    plt.plot(df.index, df["equity"])
-    plt.title("Equity curve — MA(20/50) on %s" % symbols[0])
-    plt.grid(alpha=0.3); plt.tight_layout()
-    os.makedirs("data", exist_ok=True)
-    plt.savefig("data/equity_curve.png", dpi=110)
-    print("  Saved: data/equity_curve.png")
+    symbol, capital = "SPY", 100_000.0
+    price_data = download_price_data([symbol], "2015-01-01", "2025-01-01")
+    output = Path("data")
+    output.mkdir(exist_ok=True)
+
+    curves = {}
+    sensitivity = []
+    for bps in (0, 1, 5, 10):
+        result = Backtest(
+            [symbol],
+            price_data=price_data,
+            initial_capital=capital,
+            strategy_cls=MovingAverageCross,
+            strategy_kwargs={"short": 20, "long": 50, "gross_allocation": .90},
+            slippage_bps=bps,
+        ).run()
+        stats, curve = performance(result["equity"], capital)
+        curves[f"MA 20/50 ({bps} bps)"] = curve["equity"]
+        sensitivity.append({"slippage_bps": bps, **stats, "fills": len(result["fills"])})
+        if bps == 1:
+            for name, ledger in result.items():
+                ledger.to_csv(output / f"{name}.csv", index=False)
+
+    benchmark = buy_and_hold(price_data[symbol], capital, slippage_bps=1)
+    benchmark_stats, benchmark_curve = performance(benchmark, capital)
+    curves["Buy & hold (1 bps)"] = benchmark_curve["equity"]
+    pd.DataFrame(sensitivity).to_csv(output / "cost_sensitivity.csv", index=False)
+
+    ax = pd.DataFrame(curves).plot(figsize=(11, 6), title="SPY: MA(20/50) vs cost-matched buy & hold")
+    ax.set_ylabel("Portfolio value ($)")
+    ax.figure.tight_layout()
+    ax.figure.savefig(output / "equity_curve.png", dpi=150)
+    print(pd.DataFrame(sensitivity).to_string(index=False))
+    print("\nBuy & hold (1 bps):", benchmark_stats)
+    print("\nSaved ledgers, sensitivity results, and chart to data/")
 
 
 if __name__ == "__main__":
