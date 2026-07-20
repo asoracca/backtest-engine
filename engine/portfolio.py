@@ -28,16 +28,28 @@ class Portfolio:
 
     def _equity(self) -> float:
         market_value = sum(
-            self.positions[symbol] * self.data.get_latest_close(symbol)
-            for symbol in self.symbols
+            self.positions[symbol] * self.data.get_latest_close(symbol) for symbol in self.symbols
         )
         return self.cash + market_value
+
+    def _pending_sell_proceeds(self) -> float:
+        """Conservative proceeds from sells scheduled before pending buys."""
+        return sum(
+            max(
+                0.0,
+                order["quantity"] * order["reference_price"] * (1.0 - self.reserve_buffer) - 1.0,
+            )
+            for order in self.orders
+            if order["status"] == "pending" and order["direction"] == "SELL"
+        )
 
     def update_signal(self, event) -> None:
         symbol = event.symbol
         price = self.data.get_latest_close(symbol)
         equity = self._equity()
-        target_quantity = int((equity * event.target_weight) // price)
+        if not 0.0 <= event.target_weight <= 1.0:
+            raise ValueError("this portfolio supports long-only target weights in [0, 1]")
+        target_quantity = int(equity * event.target_weight / price)
         quantity_delta = target_quantity - self.positions[symbol]
         if quantity_delta == 0:
             return
@@ -48,7 +60,10 @@ class Portfolio:
         if direction == "SELL":
             quantity = min(quantity, self.positions[symbol])
         else:
-            available = max(0.0, self.cash - self.reserved_cash)
+            available = max(
+                0.0,
+                self.cash + self._pending_sell_proceeds() - self.reserved_cash,
+            )
             estimated_unit_cost = price * (1.0 + self.reserve_buffer)
             quantity = min(quantity, int(max(0.0, available - 1.0) // estimated_unit_cost))
 
