@@ -8,4 +8,6 @@ build/
 dist/
 data/*.csv
 data/*.png
+data/**/*.csv
+data/**/*.png
 !data/.gitkeep
