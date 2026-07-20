@@ -36,6 +36,23 @@ Run the SPY example (this step downloads market data):
 python run.py
 ```
 
+Run the cross-sectional sector-ETF example:
+
+```bash
+python run_cross_sectional.py
+```
+
+That experiment ranks nine US sector ETFs using a fixed 12-1 momentum signal,
+holds the top third, and rebalances approximately every 21 trading days. It
+compares the strategy with an equal-weight buy-and-hold basket through the same
+event engine and cost model. Results at 0, 5, 10, and 25 bps are written to
+`data/cross_sectional/`.
+
+The implementation is intentionally long-only. Adding a negative target to a
+long-only portfolio would not constitute a valid short simulation: borrow,
+margin, short proceeds, financing, and forced-liquidation rules must be modeled
+explicitly first.
+
 Outputs are saved under `data/`, including every ledger, the cost-sensitivity table, and an equity chart.
 
 ## Minimal network-free use
