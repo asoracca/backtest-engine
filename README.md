@@ -55,6 +55,22 @@ explicitly first.
 
 Outputs are saved under `data/`, including every ledger, the cost-sensitivity table, and an equity chart.
 
+## Strategy-selection bias research
+
+Version 1.1 adds a controlled multiple-testing experiment and an implementation
+of combinatorially symmetric cross-validation. It demonstrates how searching
+more zero-alpha strategy variants can manufacture an impressive in-sample
+winner whose holdout performance does not persist.
+
+```bash
+python run_overfitting_study.py
+```
+
+See [the selection-bias methodology](docs/SELECTION_BIAS.md) and
+[recorded results](docs/SELECTION_BIAS_RESULTS.md). This diagnostic requires the
+complete strategy/configuration set; applying it only to surviving backtests
+would hide the selection process it is intended to measure.
+
 ## Minimal network-free use
 
 ```python
