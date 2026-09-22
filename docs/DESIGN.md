@@ -19,3 +19,10 @@ An order submitted on the final bar is cancelled with `end_of_data`; it is never
 ## Intentionally excluded
 
 Version 1 does not add more strategies. Its goal is a reliable engine boundary, auditable ledgers, and honest evaluation—not a strategy catalogue.
+
+## Experiment persistence
+
+The completed run can now be saved behind a save/load interface, with immutable
+audit events, content identities and exact configuration replay. See
+[replayable experiments](EXPERIMENTS.md) for storage architecture, SQL reports,
+compatibility details and data policies.

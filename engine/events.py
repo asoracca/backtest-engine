@@ -45,3 +45,47 @@ class FillEvent:
     slippage_cost: float
     type: str = field(default="FILL", init=False)
 
+
+@dataclass(frozen=True)
+class OrderAcceptedEvent:
+    order: OrderEvent
+    reserved_cash: float
+    type: str = field(default="ORDER_ACCEPTED", init=False)
+
+
+@dataclass(frozen=True)
+class OrderRejectedEvent:
+    dt: datetime
+    order_id: str | None
+    symbol: str
+    quantity: int
+    reason: str
+    type: str = field(default="ORDER_REJECTED", init=False)
+
+
+@dataclass(frozen=True)
+class AccountingFillEvent:
+    """Actual booked fill, after affordability checks (not a broker proposal)."""
+
+    fill: FillEvent
+    cash_flow: float
+    cash: float
+    position: int
+    type: str = field(default="FILL_BOOKED", init=False)
+
+
+@dataclass(frozen=True)
+class ValuationEvent:
+    dt: datetime
+    cash: float
+    reserved_cash: float
+    equity: float
+    positions: tuple[tuple[str, int, float], ...]
+    type: str = field(default="VALUATION", init=False)
+
+
+@dataclass(frozen=True)
+class EventRecord:
+    run_id: str
+    sequence: int
+    event: SignalEvent | OrderAcceptedEvent | OrderRejectedEvent | AccountingFillEvent | ValuationEvent
