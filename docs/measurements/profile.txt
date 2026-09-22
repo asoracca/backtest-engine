@@ -1,0 +1,20 @@
+Tue Sep 22 02:04:28 2026    /tmp/backtest-profile.pstats
+
+         39894603 function calls (39436450 primitive calls) in 16.836 seconds
+
+   Ordered by: cumulative time
+   List reduced from 643 to 12 due to restriction <12>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.024    0.024   14.282   14.282 backtest.py:93(run)
+   255297    0.310    0.000    9.793    0.000 indexing.py:1192(__getitem__)
+   255277    0.403    0.000    9.035    0.000 indexing.py:1740(_getitem_axis)
+   202419    0.278    0.000    8.838    0.000 data.py:115(get_latest_close)
+     2520    0.059    0.000    6.668    0.003 portfolio.py:178(mark_to_market)
+   255277    0.337    0.000    6.157    0.000 frame.py:4292(_ixs)
+     2520    0.072    0.000    4.604    0.002 strategy.py:32(calculate_signals)
+     6184    0.019    0.000    4.525    0.001 {built-in method builtins.sum}
+     4959    0.005    0.000    4.475    0.001 portfolio.py:35(_equity)
+   104139    0.049    0.000    4.452    0.000 portfolio.py:36(<genexpr>)
+    50400    0.138    0.000    3.984    0.000 data.py:118(get_latest_closes)
+        1    0.000    0.000    2.573    2.573 benchmark.py:38(make_backtest)

@@ -127,6 +127,23 @@ def simulate_null_strategies(
     )
 
 
+@dataclass(frozen=True)
+class DevelopmentSelection:
+    selected_strategy: str
+    selected_sharpe: float
+    pbo: PBOResult
+
+
+def select_on_development(development: pd.DataFrame, n_slices: int = 8) -> DevelopmentSelection:
+    """Freeze the winner and diagnostic using development observations only."""
+    if development.columns.has_duplicates:
+        raise ValueError("strategy names must be unique")
+    pbo = combinatorially_symmetric_cv(development, n_slices=n_slices)
+    scores = annualized_sharpe(development.to_numpy())
+    winner = int(np.argmax(scores))
+    return DevelopmentSelection(str(development.columns[winner]), float(scores[winner]), pbo)
+
+
 def run_selection_bias_experiment(
     candidate_counts: tuple[int, ...] = (5, 20, 100),
     repetitions: int = 40,
@@ -140,26 +157,33 @@ def run_selection_bias_experiment(
     if not candidate_counts or any(count < 2 for count in candidate_counts):
         raise ValueError("candidate counts must contain values of at least two")
     rng = np.random.default_rng(seed)
-    rows: list[dict[str, float | int]] = []
+    # The deliberately leaky negative control never shares evaluation observations.
+    control_rng = np.random.default_rng(np.random.SeedSequence([seed, 1]))
+    rows: list[dict[str, float | int | str]] = []
 
     for candidate_count in candidate_counts:
         for repetition in range(repetitions):
             returns = simulate_null_strategies(observations, candidate_count, rng)
-            full_scores = annualized_sharpe(returns.to_numpy())
-            winner = int(np.argmax(full_scores))
             midpoint = observations // 2
-            first_half_scores = annualized_sharpe(returns.iloc[:midpoint].to_numpy())
-            selected = int(np.argmax(first_half_scores))
-            holdout_scores = annualized_sharpe(returns.iloc[midpoint:].to_numpy())
-            pbo = combinatorially_symmetric_cv(returns, n_slices=n_slices)
+            selection = select_on_development(returns.iloc[:midpoint], n_slices=n_slices)
+            # Only the frozen winner is evaluated on the reserved second half.
+            holdout_score = annualized_sharpe(
+                returns.loc[returns.index[midpoint:], selection.selected_strategy].to_numpy()
+            )[0]
+            negative_control = simulate_null_strategies(observations, candidate_count, control_rng)
+            full_scores = annualized_sharpe(negative_control.to_numpy())
+            winner = int(np.argmax(full_scores))
             rows.append(
                 {
                     "candidate_count": candidate_count,
                     "repetition": repetition,
                     "naive_best_full_sample_sharpe": float(full_scores[winner]),
-                    "first_half_selected_sharpe": float(first_half_scores[selected]),
-                    "selected_holdout_sharpe": float(holdout_scores[selected]),
-                    "pbo": pbo.probability_of_backtest_overfitting,
+                    "selected_strategy": selection.selected_strategy,
+                    "development_observations": midpoint,
+                    "evaluation_observations": observations - midpoint,
+                    "first_half_selected_sharpe": selection.selected_sharpe,
+                    "selected_holdout_sharpe": float(holdout_score),
+                    "pbo": selection.pbo.probability_of_backtest_overfitting,
                 }
             )
 

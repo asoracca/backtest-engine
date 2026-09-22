@@ -30,6 +30,40 @@ pip install -e ".[dev]"
 python -m unittest discover -s tests -v
 ```
 
+## Offline accounting and stored replay
+
+After installation, run from this repository's root:
+
+```bash
+python run_offline.py
+python run_experiments.py --db experiments.sqlite demo
+```
+
+The first command prints a versioned synthetic OHLC fixture's expected ledgers
+and timeline. The second stores four cost scenarios in SQLite and verifies exact
+replay from stored configuration and prices. No credentials or network are used.
+
+```text
+Jan 1 close: signal A at 10.00; B rejected for insufficient cash
+Jan 2 open:  buy 8 A at 12.012; commission 1.00; cash 2.904
+Jan 2 close: 8 A marked at 13.00; equity 106.904
+Jan 3 open:  exit A; final cash and equity 113.792
+```
+
+Today's close signal cannot receive today's price. The invented example is an
+accounting demonstration, not a historical trading result. See the
+[fixture and regeneration command](fixtures/synthetic/README.md),
+[storage, architecture and data policies](docs/EXPERIMENTS.md), and
+[measured benchmark](docs/PERFORMANCE.md).
+
+`compare RUN_ID_A RUN_ID_B`, `costs RUN_ID`, `replay RUN_ID` and `plan RUN_ID`
+are subcommands of `run_experiments.py`. Comparison rejects mismatched data,
+timing or costs; the separate cost report varies only slippage. The original
+`Backtest.run()` ledger API is preserved. Strict calendar validation is available;
+the default retains the documented common-calendar policy.
+
+## Historical examples
+
 Run the SPY example (this step downloads market data):
 
 ```bash

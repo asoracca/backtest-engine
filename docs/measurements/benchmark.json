@@ -1,0 +1,114 @@
+{
+  "kind": "synthetic",
+  "seed": 17,
+  "symbols": 20,
+  "bars_per_symbol": 2520,
+  "input_rows": 50400,
+  "consumed_columns": [
+    "Open",
+    "Close"
+  ],
+  "events": 9838,
+  "ledger_rows": 62756,
+  "repeats": 3,
+  "seconds": [
+    4.79093991604168,
+    4.819878124981187,
+    6.404577417008113
+  ],
+  "median_seconds": 4.819878124981187,
+  "events_per_second": 2041.1304487161487,
+  "tracemalloc_peak_bytes": 50021681,
+  "process_peak_rss_bytes": 382484480,
+  "snapshot_seconds": 0.8704346669837832,
+  "sqlite_save_seconds": 1.3427781659993343,
+  "sqlite_load_seconds": 0.5959005000186153,
+  "database_bytes": 39616512,
+  "ledger_hash": "2273f0c763f0240580ea209af4f8607728cbb131faa164e4cb8b669f27cc2838",
+  "versions": {
+    "python": "3.12.14",
+    "pandas": "3.0.6",
+    "numpy": "2.5.3",
+    "sqlite": "3.53.1"
+  },
+  "hardware": {
+    "os": "macOS-26.5.1-arm64-arm-64bit",
+    "cpu": "arm (CPU model unavailable in sandbox)",
+    "logical_cpus": 10
+  },
+  "query_plan": [
+    [
+      2,
+      0,
+      0,
+      "CO-ROUTINE costs"
+    ],
+    [
+      6,
+      2,
+      61,
+      "SEARCH ledgers USING INDEX sqlite_autoindex_ledgers_1 (run_id=? AND ledger=?)"
+    ],
+    [
+      34,
+      0,
+      16,
+      "SCAN costs"
+    ],
+    [
+      39,
+      0,
+      0,
+      "SCALAR SUBQUERY 3"
+    ],
+    [
+      43,
+      39,
+      0,
+      "MATERIALIZE curve"
+    ],
+    [
+      46,
+      43,
+      0,
+      "CO-ROUTINE (subquery-6)"
+    ],
+    [
+      50,
+      46,
+      61,
+      "SEARCH ledgers USING INDEX sqlite_autoindex_ledgers_1 (run_id=? AND ledger=?)"
+    ],
+    [
+      73,
+      43,
+      47,
+      "SCAN (subquery-6)"
+    ],
+    [
+      123,
+      39,
+      47,
+      "SCAN curve"
+    ],
+    [
+      137,
+      39,
+      0,
+      "USE TEMP B-TREE FOR ORDER BY"
+    ],
+    [
+      145,
+      0,
+      0,
+      "SCALAR SUBQUERY 4"
+    ],
+    [
+      151,
+      145,
+      216,
+      "SEARCH curve"
+    ]
+  ],
+  "measurement_scope": "Throughput includes Backtest construction, input hashing and run; excludes data generation, validation, persistence, profiling and allocation tracing. Allocation peak is a separate constructor/run; RSS is process lifetime and includes other passes."
+}

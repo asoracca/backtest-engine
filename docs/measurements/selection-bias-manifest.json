@@ -1,0 +1,27 @@
+{
+  "kind": "synthetic",
+  "config": {
+    "candidate_counts": [
+      5,
+      20,
+      100
+    ],
+    "repetitions": 40,
+    "observations": 240,
+    "n_slices": 8,
+    "seed": 17
+  },
+  "development_observations": 120,
+  "evaluation_observations": 120,
+  "negative_control": "independent dataset; SeedSequence([seed, 1]); hindsight winner",
+  "versions": {
+    "python": "3.12.14",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6"
+  },
+  "source_sha256": "d387c79fd8d26f50e3a3ed9710f3fa55798f9af762a9cea07f24ce62ab7872f4",
+  "outputs_sha256": {
+    "simulation_runs.csv": "9f7d2800f30208b954dd795c04137fc83e3b56fb5500ed650d4d93cc71b3c3a8",
+    "summary.csv": "5db8975bf906a862c11e36dac14df46f14c7450e323883c46444bb054cdca807"
+  }
+}

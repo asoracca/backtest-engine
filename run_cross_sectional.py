@@ -10,7 +10,6 @@ from engine.data import download_price_data
 from engine.metrics import performance
 from engine.strategy import CrossSectionalMomentum, EqualWeightBuyAndHold
 
-
 SYMBOLS = ["XLB", "XLE", "XLF", "XLI", "XLK", "XLP", "XLU", "XLV", "XLY"]
 CAPITAL = 100_000.0
 

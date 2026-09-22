@@ -11,3 +11,9 @@ data/*.png
 data/**/*.csv
 data/**/*.png
 !data/.gitkeep
+
+.venv-runtime/
+*.sqlite
+*.sqlite-*
+
+data/selection_bias/manifest.json

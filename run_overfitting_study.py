@@ -1,8 +1,13 @@
 """Demonstrate strategy-selection bias under a controlled zero-alpha null."""
 
+import hashlib
+import json
+import platform
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 from engine.selection_bias import run_selection_bias_experiment
 
@@ -10,10 +15,31 @@ from engine.selection_bias import run_selection_bias_experiment
 def main():
     output = Path("data/selection_bias")
     output.mkdir(parents=True, exist_ok=True)
-    raw, summary = run_selection_bias_experiment()
+    config = {
+        "candidate_counts": (5, 20, 100),
+        "repetitions": 40,
+        "observations": 240,
+        "n_slices": 8,
+        "seed": 17,
+    }
+    raw, summary = run_selection_bias_experiment(**config)
     raw.to_csv(output / "simulation_runs.csv", index=False)
     summary.to_csv(output / "summary.csv", index=False)
 
+    manifest = {
+        "kind": "synthetic",
+        "config": config,
+        "development_observations": 120,
+        "evaluation_observations": 120,
+        "negative_control": "independent dataset; SeedSequence([seed, 1]); hindsight winner",
+        "versions": {"python": platform.python_version(), "numpy": np.__version__, "pandas": pd.__version__},
+        "source_sha256": hashlib.sha256(Path("engine/selection_bias.py").read_bytes()).hexdigest(),
+        "outputs_sha256": {
+            name: hashlib.sha256((output / name).read_bytes()).hexdigest()
+            for name in ("simulation_runs.csv", "summary.csv")
+        },
+    }
+    (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     figure, axes = plt.subplots(1, 2, figsize=(11, 4.8))
     axes[0].errorbar(
         summary["candidate_count"],
@@ -24,7 +50,7 @@ def main():
         ],
         marker="o",
         capsize=4,
-        label="Best full-sample Sharpe",
+        label="Independent hindsight control",
     )
     axes[0].errorbar(
         summary["candidate_count"],
@@ -60,7 +86,7 @@ def main():
     axes[1].set_ylim(0, 1)
     axes[1].set_xlabel("Number of strategies tried")
     axes[1].set_ylabel("Mean probability of backtest overfitting")
-    axes[1].set_title("CSCV out-of-sample rank failure")
+    axes[1].set_title("Development-only CSCV rank failure")
     figure.tight_layout()
     figure.savefig(output / "selection_bias.png", dpi=180)
     documentation = Path("docs/assets/selection_bias.png")

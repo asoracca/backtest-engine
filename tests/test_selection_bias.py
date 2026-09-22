@@ -60,5 +60,50 @@ class SelectionBiasTests(unittest.TestCase):
             combinatorially_symmetric_cv(pd.DataFrame({"a": [0.0] * 20, "b": [0.0] * 20}), n_slices=3)
 
 
+class EvaluationIsolationTests(unittest.TestCase):
+    def test_changing_holdout_does_not_change_selection_or_development_pbo(self):
+        from unittest.mock import patch
+
+        original = simulate_null_strategies(40, 3, np.random.default_rng(22))
+        altered = original.copy()
+        altered.iloc[20:] = np.random.default_rng(23).normal(10, 1, (20, 3))
+        outputs = []
+        for data in (original, altered):
+            with patch("engine.selection_bias.simulate_null_strategies", return_value=data):
+                raw, _ = run_selection_bias_experiment(
+                    candidate_counts=(3,), repetitions=2, observations=40, n_slices=4
+                )
+                outputs.append(raw)
+        for column in ("selected_strategy", "first_half_selected_sharpe", "pbo"):
+            pd.testing.assert_series_equal(outputs[0][column], outputs[1][column])
+        self.assertFalse(outputs[0].selected_holdout_sharpe.equals(outputs[1].selected_holdout_sharpe))
+
+    def test_cscv_only_receives_development_and_control_has_separate_rng(self):
+        from unittest.mock import patch
+
+        rngs = []
+
+        def simulate(observations, strategies, rng):
+            rngs.append(rng)
+            return simulate_null_strategies(observations, strategies, rng)
+
+        with (
+            patch(
+                "engine.selection_bias.combinatorially_symmetric_cv", wraps=combinatorially_symmetric_cv
+            ) as cv,
+            patch("engine.selection_bias.simulate_null_strategies", side_effect=simulate),
+        ):
+            run_selection_bias_experiment(candidate_counts=(3,), repetitions=2, observations=40, n_slices=4)
+        self.assertEqual([len(call.args[0]) for call in cv.call_args_list], [20, 20])
+        self.assertIsNot(rngs[0], rngs[1])
+        self.assertIs(rngs[0], rngs[2])
+
+    def test_development_selection_rejects_duplicate_names(self):
+        from engine.selection_bias import select_on_development
+
+        with self.assertRaisesRegex(ValueError, "unique"):
+            select_on_development(pd.DataFrame(np.ones((40, 2)), columns=["same", "same"]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -17,3 +17,6 @@ include = ["engine*"]
 
 [tool.ruff]
 line-length = 110
+
+[tool.setuptools.package-data]
+engine = ["sql/*.sql"]

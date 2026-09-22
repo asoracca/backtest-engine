@@ -42,26 +42,35 @@ class DataHandler:
         start=None,
         end=None,
         price_data: Mapping[str, pd.DataFrame] | None = None,
+        calendar_policy="common",
     ):
+        if calendar_policy not in ("common", "strict"):
+            raise ValueError("calendar_policy must be common or strict")
+        self.calendar_policy = calendar_policy
         self.events = events
         self.symbols = list(symbols)
+        if len(set(self.symbols)) != len(self.symbols):
+            raise ValueError("symbols must be unique")
         if not self.symbols:
             raise ValueError("at least one symbol is required")
 
-        source = (
-            dict(price_data)
-            if price_data is not None
-            else download_price_data(self.symbols, start, end)
-        )
+        source = dict(price_data) if price_data is not None else download_price_data(self.symbols, start, end)
         missing = set(self.symbols).difference(source)
         if missing:
             raise ValueError(f"missing price data for: {sorted(missing)}")
 
         self.frames = {symbol: self._normalize(source[symbol], symbol) for symbol in self.symbols}
+        self.source_frames = self.frames.copy()
         common = self.frames[self.symbols[0]].index
         for symbol in self.symbols[1:]:
             common = common.intersection(self.frames[symbol].index)
         common = common.sort_values()
+        self.excluded_dates = {
+            symbol: [dt.isoformat() for dt in frame.index.difference(common)]
+            for symbol, frame in self.frames.items()
+        }
+        if calendar_policy == "strict" and any(self.excluded_dates.values()):
+            raise ValueError("missing bars or delisting: strict calendar requires identical dates")
         if len(common) < 2:
             raise ValueError("symbols need at least two common bars")
 
@@ -75,12 +84,19 @@ class DataHandler:
     def _normalize(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
         if not isinstance(frame, pd.DataFrame):
             raise TypeError(f"price_data[{symbol!r}] must be a DataFrame")
-        renamed = frame.rename(columns={str(c).lower(): str(c).title() for c in frame.columns})
+        renamed = frame.rename(columns={c: str(c).title() for c in frame.columns})
+        for column in ("Dividends", "Stock Splits", "Delisted", "Stale"):
+            if column in renamed and (renamed[column].fillna(0) != 0).any():
+                raise ValueError(f"{symbol}: unsupported data flag {column}")
         if not {"Open", "Close"}.issubset(renamed.columns):
             raise ValueError(f"{symbol} requires Open and Close columns")
         out = renamed[["Open", "Close"]].copy()
         out.index = pd.DatetimeIndex(pd.to_datetime(out.index)).tz_localize(None)
-        out = out[~out.index.duplicated(keep="last")].sort_index().astype(float).dropna()
+        if out.index.has_duplicates or out.index.isna().any():
+            raise ValueError(f"{symbol}: duplicate or invalid timestamps")
+        out = out.sort_index().astype(float)
+        if not np.isfinite(out.to_numpy()).all():
+            raise ValueError(f"{symbol}: prices must be finite; missing/stale bars cannot be filled")
         if (out <= 0).any().any():
             raise ValueError(f"{symbol} contains non-positive prices")
         return out
@@ -105,4 +121,3 @@ class DataHandler:
 
     def frame(self, symbol: str) -> pd.DataFrame:
         return self.frames[symbol].copy()
-
