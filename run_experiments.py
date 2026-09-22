@@ -7,6 +7,7 @@ from engine.backtest import Backtest
 from engine.demo import DemoStrategy, demo_data, render_demo
 from engine.experiments import record_run, replay
 from engine.storage import SQLiteStore
+from engine.strategy import EqualWeightBuyAndHold
 
 
 def main():
@@ -42,6 +43,21 @@ def main():
                 print(f"{bps} bps: {bt.run_id} (stored and exact replay verified)")
             print(render_demo(result))
             print(json.dumps(store.cost_sensitivity(bt.run_id), indent=2))
+            baseline = Backtest(
+                ["A", "B"],
+                price_data=demo_data(),
+                initial_capital=100,
+                strategy_cls=EqualWeightBuyAndHold,
+                commission_per_share=0,
+                minimum_commission=1,
+                slippage_bps=10,
+                calendar_policy="strict",
+                provenance={"kind": "synthetic", "source": "fixtures/synthetic/ohlc.csv v1"},
+            )
+            record_run(baseline, store)
+            replay(store, baseline.run_id)
+            print("SAME-DATA, SAME-COST COMPARISON: scripted accounting example vs equal-weight hold")
+            print(json.dumps(store.compare([bt.run_id, baseline.run_id]), indent=2))
         elif args.command == "replay":
             replay(store, args.run_id)
             print(f"Exact replay verified: {args.run_id}")

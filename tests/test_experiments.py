@@ -264,3 +264,58 @@ class AccountingBoundaryTests(unittest.TestCase):
             elif event.type == "VALUATION":
                 marked = sum(positions[symbol] * close for symbol, quantity, close in event.positions)
                 self.assertAlmostEqual(event.equity, cash + marked)
+
+
+class PersistenceConstraintTests(unittest.TestCase):
+    def test_foreign_keys_uniqueness_and_projection_constraints(self):
+        bt = demo_backtest()
+        experiment = snapshot(bt, bt.run())
+        with SQLiteStore(":memory:") as sql:
+            sql.save(experiment)
+            with self.assertRaises(sqlite3.IntegrityError):
+                sql.connection.execute(
+                    "INSERT INTO events VALUES (?, ?, ?, ?)",
+                    ("missing-run", 0, "SIGNAL", '{"type":"SIGNAL"}'),
+                )
+            with self.assertRaises(sqlite3.IntegrityError):
+                sql.connection.execute(
+                    "INSERT INTO events SELECT * FROM events WHERE run_id = ? AND sequence = 0",
+                    (bt.run_id,),
+                )
+            with self.assertRaises(sqlite3.IntegrityError):
+                sql.connection.execute(
+                    "UPDATE ledgers SET equity = equity + 100 WHERE run_id = ? AND ledger = 'cash'",
+                    (bt.run_id,),
+                )
+            self.assertEqual(sql.load(bt.run_id), experiment)
+
+    def test_no_trade_run_replays_with_zero_costs(self):
+        from engine.strategy import MovingAverageCross
+
+        bt = Backtest(["A"], price_data=demo_data(), strategy_cls=MovingAverageCross)
+        with SQLiteStore(":memory:") as sql:
+            record_run(bt, sql)
+            result = replay(sql, bt.run_id)
+            self.assertTrue(result["fills"].empty)
+            summary = sql.summary(bt.run_id)
+            self.assertEqual(summary["commission"], 0)
+            self.assertEqual(summary["fills"], 0)
+            self.assertEqual(summary["max_drawdown"], 0)
+
+    def test_common_calendar_never_fills_an_absent_date(self):
+        data = demo_data()
+        data["B"] = data["B"].drop(data["B"].index[1])
+        bt = Backtest(["A", "B"], price_data=data, strategy_cls=DemoStrategy, initial_capital=100)
+        result = bt.run()
+        self.assertEqual(result["fills"].iloc[0].fill_dt, pd.Timestamp("2024-01-03"))
+        self.assertEqual(result["fills"].iloc[0].reference_price, 14)
+        self.assertEqual(bt.metadata["excluded_dates"]["A"], ["2024-01-02T00:00:00"])
+
+    def test_offline_demo_and_stored_replay_do_not_open_network(self):
+        from unittest.mock import patch
+
+        with patch("socket.socket.connect", side_effect=AssertionError("network forbidden")):
+            bt = demo_backtest()
+            with SQLiteStore(":memory:") as sql:
+                record_run(bt, sql)
+                replay(sql, bt.run_id)
