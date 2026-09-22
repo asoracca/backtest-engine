@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
-from .events import OrderEvent
+from dataclasses import replace
+
+from .events import AccountingFillEvent, OrderAcceptedEvent, OrderEvent, OrderRejectedEvent, ValuationEvent
 
 
 class Portfolio:
-    def __init__(self, data, events, initial_capital=100_000.0, reserve_buffer=0.02):
+    def __init__(
+        self, data, events, initial_capital=100_000.0, reserve_buffer=0.02, record=None, commission=None
+    ):
+        self.record = record or (lambda event: None)
+        self.commission = commission
         self.data = data
         self.events = events
         self.symbols = data.symbols
@@ -99,6 +105,7 @@ class Portfolio:
                 "status": "pending",
             }
         )
+        self.record(OrderAcceptedEvent(order, self.reserved_cash))
         self.events.put(order)
 
     def update_fill(self, event) -> None:
@@ -107,14 +114,23 @@ class Portfolio:
         quantity = event.quantity
 
         if event.direction == "BUY":
-            affordable = int(max(0.0, self.cash - event.commission) // event.fill_price)
+            # Monotone search charges the configured fee on the actual quantity.
+            low, high = 0, min(quantity, int(self.cash // event.fill_price))
+            while low < high:
+                mid = (low + high + 1) // 2
+                fee = self.commission(mid) if self.commission else event.commission
+                if mid * event.fill_price + fee <= self.cash:
+                    low = mid
+                else:
+                    high = mid - 1
+            affordable = low
             if affordable < quantity:
                 self._reject(event.order_id, event.symbol, quantity - affordable, "gap_exceeded_cash")
                 quantity = affordable
             if quantity <= 0:
                 self._set_order_status(event.order_id, "rejected")
                 return
-            commission = event.commission * quantity / event.quantity
+            commission = self.commission(quantity) if self.commission else event.commission
             self.positions[event.symbol] += quantity
             self.cash -= quantity * event.fill_price + commission
             cash_flow = -(quantity * event.fill_price + commission)
@@ -124,7 +140,11 @@ class Portfolio:
                 self._reject(event.order_id, event.symbol, event.quantity, "no_position_to_sell")
                 self._set_order_status(event.order_id, "rejected")
                 return
-            commission = event.commission * quantity / event.quantity
+            commission = self.commission(quantity) if self.commission else event.commission
+            if quantity * event.fill_price + self.cash < commission:
+                self._reject(event.order_id, event.symbol, quantity, "sale_cannot_cover_commission")
+                self._set_order_status(event.order_id, "rejected")
+                return
             self.positions[event.symbol] -= quantity
             self.cash += quantity * event.fill_price - commission
             cash_flow = quantity * event.fill_price - commission
@@ -143,12 +163,32 @@ class Portfolio:
             "slippage_cost": slippage_cost,
             "cash_flow": cash_flow,
         }
+        self.record(
+            AccountingFillEvent(
+                replace(event, quantity=quantity, commission=commission, slippage_cost=slippage_cost),
+                cash_flow,
+                self.cash,
+                self.positions[event.symbol],
+            )
+        )
         self.fills.append(record)
         self.trades.append(record.copy())
         self._set_order_status(event.order_id, "filled" if quantity == event.quantity else "partially_filled")
 
     def mark_to_market(self, event) -> None:
         equity = self._equity()
+        self.record(
+            ValuationEvent(
+                event.dt,
+                self.cash,
+                self.reserved_cash,
+                equity,
+                tuple(
+                    (symbol, self.positions[symbol], self.data.get_latest_close(symbol))
+                    for symbol in self.symbols
+                ),
+            )
+        )
         self.equity_curve.append({"dt": event.dt, "equity": equity})
         self.cash_ledger.append(
             {"dt": event.dt, "cash": self.cash, "reserved_cash": self.reserved_cash, "equity": equity}
@@ -178,6 +218,7 @@ class Portfolio:
                 return
 
     def _reject(self, order_id, symbol, quantity, reason) -> None:
+        self.record(OrderRejectedEvent(self.data.current_dt, order_id, symbol, quantity, reason))
         self.rejections.append(
             {
                 "dt": self.data.current_dt,
