@@ -15,3 +15,5 @@ data/**/*.png
 .venv-runtime/
 *.sqlite
 *.sqlite-*
+
+data/selection_bias/manifest.json
